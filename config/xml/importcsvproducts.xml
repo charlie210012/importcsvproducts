@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<module>
+    <name>importcsvproducts</name>
+    <version>1.0.0</version>
+    <displayName><![CDATA[Import CSV Products]]></displayName>
+    <description><![CDATA[Import products from a CSV file.]]></description>
+    <author><![CDATA[Your Name]]></author>
+    <class_name><![CDATA[ImportCsvProducts]]></class_name>
+    <need_instance>0</need_instance>
+</module>
