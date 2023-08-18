@@ -45,7 +45,6 @@ class ImportCsvProducts extends Module
                 foreach ($rows as $row) {
                     $productData = array_combine($header, $row);
                     $product = new Product();
-                    $product->name = array(Configuration::get('PS_LANG_DEFAULT') => $productData['Nombre']);
                     $product->reference = $productData['Referencia'];
                     $product->ean13 = $productData['EAN13'];
                     $product->price = $productData['Precio de venta'];
@@ -54,6 +53,10 @@ class ImportCsvProducts extends Module
                     $taxRuleGroupId = $this->getTaxRuleGroupIdByPercentage($ivaPercentage); 
                     $product->id_tax_rules_group = (int)$taxRuleGroupId;
                     $product->id_category_default = 2;
+                    
+                    foreach (Language::getLanguages(true) as $language) {
+                        $product->name[$language['id_lang']] = $productData['Nombre'];
+                    }
 
 
 
@@ -174,25 +177,26 @@ class ImportCsvProducts extends Module
      * 
      * @return int
      */
-    private function getOrCreateTaxByPercentage($percentage) :?int
+    private function getOrCreateTaxByPercentage($percentage): ?int
     {
         $taxes = Tax::getTaxes($this->context->language->id);
-        
+    
         foreach ($taxes as $tax) {
             if ($tax['rate'] == (float)$percentage) {
                 return $tax['id_tax'];
             }
         }
-
+    
         $newTax = new Tax();
         $newTax->rate = (float)$percentage;
+        $newTax->name = array((int)$this->context->language->id => 'IVA ' . $percentage . '%'); // Establecer el nombre del impuesto
         $newTax->active = 1;
         $newTax->deleted = 0;
-
+    
         if ($newTax->add()) {
             return $newTax->id;
         }
-
+    
         return false; // En caso de error
     }
 
