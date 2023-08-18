@@ -26,6 +26,7 @@ class ImportCsvProducts extends Module
     }
 
   
+    
     public function getContent()
     {
         $output = '';
@@ -49,6 +50,13 @@ class ImportCsvProducts extends Module
                     $product->ean13 = $productData['EAN13'];
                     $product->price = $productData['Precio de venta'];
                     $product->wholesale_price = $productData['Precio de coste'];
+                    $ivaPercentage = (float)$productData['IVA'];
+                    $taxRuleGroupId = $this->getTaxRuleGroupIdByPercentage($ivaPercentage); 
+                    $product->id_tax_rules_group = (int)$taxRuleGroupId;
+                    $product->id_category_default = 2;
+
+
+
 
                     if ($product->add()) {
                         $successCount++;
@@ -117,6 +125,78 @@ class ImportCsvProducts extends Module
         $fileMimeType = mime_content_type($file);
         return in_array($fileMimeType, $mimeTypes);
     }
+
+    
+    /**
+     * @param mixed $percentage
+     * 
+     * @return int
+     */
+    private function getTaxRuleGroupIdByPercentage($percentage): int
+    {
+        // Obtener el ID del país actual (puedes usar la lógica adecuada para obtenerlo)
+        $currentCountryId = (int)Context::getContext()->country->id;
+
+        $sql = 'SELECT trg.id_tax_rules_group FROM ' . _DB_PREFIX_ . 'tax_rules_group trg
+                INNER JOIN ' . _DB_PREFIX_ . 'tax_rule tr ON tr.id_tax_rules_group = trg.id_tax_rules_group
+                INNER JOIN ' . _DB_PREFIX_ . 'tax t ON t.id_tax = tr.id_tax
+                WHERE t.rate = ' . (float)$percentage . ' AND tr.id_country = ' . $currentCountryId;
+                
+        $existingGroupId = Db::getInstance()->getValue($sql);
+
+        if ($existingGroupId) {
+            return $existingGroupId; // Devolver el ID del grupo existente
+        }
+
+        // Si no existe, crear un nuevo grupo de reglas de impuestos
+        $newTaxRuleGroup = new TaxRulesGroup();
+        $newTaxRuleGroup->name = 'IVA ' . $percentage . '%';
+        $newTaxRuleGroup->active = 1;
+        $newTaxRuleGroup->deleted = 0;
+        $newTaxRuleGroup->add();
+
+        // Crear la regla de impuestos dentro del nuevo grupo
+        $newTaxRule = new TaxRule();
+        $newTaxRule->id_tax_rules_group = $newTaxRuleGroup->id;
+        $newTaxRule->id_country = $currentCountryId; // Asociar al país actual
+        $newTaxRule->id_state = 0;                   // Puedes establecer un estado específico si es necesario
+        $newTaxRule->id_tax = $this->getOrCreateTaxByPercentage($percentage);
+        $newTaxRule->add();
+
+        return $newTaxRuleGroup->id; // Devolver el ID del nuevo grupo creado
+    }
+
+
+
+
+    /**
+     * @param mixed $percentage
+     * 
+     * @return int
+     */
+    private function getOrCreateTaxByPercentage($percentage) :?int
+    {
+        $taxes = Tax::getTaxes($this->context->language->id);
+        
+        foreach ($taxes as $tax) {
+            if ($tax['rate'] == (float)$percentage) {
+                return $tax['id_tax'];
+            }
+        }
+
+        $newTax = new Tax();
+        $newTax->rate = (float)$percentage;
+        $newTax->active = 1;
+        $newTax->deleted = 0;
+
+        if ($newTax->add()) {
+            return $newTax->id;
+        }
+
+        return false; // En caso de error
+    }
+
+
 
     // Función para obtener el ID de la categoría por nombre y categoría padre
     /**
